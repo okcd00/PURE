@@ -13,7 +13,12 @@ from torch.utils.data import DataLoader, TensorDataset
 def fields_to_batches(d, keys_to_ignore=[]):
     keys = [key for key in d.keys() if key not in keys_to_ignore]
     lengths = [len(d[k]) for k in keys]
-    assert len(set(lengths)) == 1
+    try:
+        assert len(set(lengths)) == 1
+    except Exception as e:
+        print(lengths)
+        print(set(lengths))
+        raise ValueError(str(e))
     length = lengths[0]
     res = [{k: d[k][i] for k in keys} for i in range(length)]
     return res
