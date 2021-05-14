@@ -19,7 +19,7 @@ import logging
 logger = logging.getLogger('root')
 
 class BertForEntity(BertPreTrainedModel):
-    def __init__(self, config, num_ner_labels, head_hidden_dim=150, width_embedding_dim=150, max_span_length=8):
+    def __init__(self, config, num_ner_labels, head_hidden_dim=150, width_embedding_dim=150, max_span_length=10):
         super().__init__(config)
 
         self.bert = BertModel(config)
