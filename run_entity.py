@@ -116,7 +116,7 @@ def setseed(seed):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--task', type=str, default=None, required=True, choices=['ace04', 'ace05', 'scierc'])
+    parser.add_argument('--task', type=str, default=None, required=True, choices=['ace04', 'ace05', 'scierc', 'msra', 'resume', 'findoc'])
 
     parser.add_argument('--data_dir', type=str, default=None, required=True, 
                         help="path to the preprocessed dataset")
@@ -137,7 +137,7 @@ if __name__ == '__main__':
                         help="the ratio of the warmup steps to the total steps")
     parser.add_argument('--num_epoch', type=int, default=100, 
                         help="number of the training epochs")
-    parser.add_argument('--print_loss_step', type=int, default=100, 
+    parser.add_argument('--print_loss_step', type=int, default=200, 
                         help="how often logging the loss value during training")
     parser.add_argument('--eval_per_epoch', type=int, default=1, 
                         help="how often evaluating the trained model on dev set during training")
