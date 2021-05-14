@@ -1,4 +1,4 @@
-task_name = resume
+task_name=resume
 
 
 python run_entity.py \
