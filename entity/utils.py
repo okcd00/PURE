@@ -19,7 +19,12 @@ def batchify(samples, batch_size):
             to_single_batch.append(i)
     
     for i in to_single_batch:
-        logger.info('Single batch sample: %s-%d', samples[i]['doc_key'], samples[i]['sentence_ix'])
+        try:
+            logger.info('Single batch sample: %s-%d', samples[i]['doc_key'], samples[i]['sentence_ix'])
+        except Exception as e:
+            print(samples.__len__(), i)
+            print(e)
+            continue
         list_samples_batches.append([samples[i]])
         samples.remove(samples[i])
 
