@@ -6,6 +6,7 @@ python run_entity.py \
     --learning_rate=1e-5 \
     --task_learning_rate=5e-4 \
     --train_batch_size=16 \
+    --max_span_length=16 \
     --context_window 0 \
     --task ${task_name} \
     --data_dir ./data/${task_name} \
