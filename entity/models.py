@@ -31,8 +31,8 @@ class BertForEntity(BertPreTrainedModel):
         # self.add_cls = torch.nn.ConstantPad2d((1,0,0,0), 101)  # [CLS]
         self.add_sep = torch.nn.ConstantPad2d((0,1,0,0), 101)  # [SEP]
         self.context_lstm = nn.LSTM(
-            input_size=self.bert.hidden_size,  # 768
-            hidden_size=head_hidden_dim,  # 150
+            input_size=config.hidden_size,  # 768
+            hidden_size=config.hidden_size,  # 150
             num_layers=2,
             dropout=0.1,
             bidirectional=True)
