@@ -32,13 +32,13 @@ class BertForEntity(BertPreTrainedModel):
         self.add_sep = torch.nn.ConstantPad2d((0,1,0,0), 101)  # [SEP]
         self.context_lstm = nn.LSTM(
             input_size=config.hidden_size,  # 768
-            hidden_size=config.hidden_size,  # 150
+            hidden_size=head_hidden_dim,  # 150
             num_layers=2,
             dropout=0.1,
             bidirectional=True)
         
         self.ner_classifier = nn.Sequential(
-            FeedForward(input_dim=config.hidden_size*4+width_embedding_dim, 
+            FeedForward(input_dim=config.hidden_size*2+head_hidden_dim*2+width_embedding_dim, 
                         num_layers=2,
                         hidden_dims=head_hidden_dim,
                         activations=F.relu,
