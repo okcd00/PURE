@@ -32,7 +32,7 @@ class BertForEntity(BertPreTrainedModel):
         self.context_lstm = nn.LSTM(
             input_size=config.hidden_size,  # 768
             hidden_size=head_hidden_dim,  # 150
-            num_layers=2,
+            num_layers=1,
             dropout=0.1,
             bidirectional=True)
         
