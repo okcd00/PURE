@@ -36,8 +36,11 @@ class BertForEntity(BertPreTrainedModel):
             dropout=0.1,
             bidirectional=True)
         
+        inp_dim = config.hidden_size * 2 + width_embedding_dim
+        if False:
+            inp_dim += head_hidden_dim * 2
         self.ner_classifier = nn.Sequential(
-            FeedForward(input_dim=config.hidden_size*2+head_hidden_dim*2+width_embedding_dim, 
+            FeedForward(input_dim=inp_dim, 
                         num_layers=2,
                         hidden_dims=head_hidden_dim,
                         activations=F.relu,
@@ -62,7 +65,6 @@ class BertForEntity(BertPreTrainedModel):
     
     def _get_span_embeddings(self, input_ids, spans, token_type_ids=None, attention_mask=None):
         sequence_output, pooled_output = self.bert(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
-        context_lef, context_rig = self.context_hidden(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)  # New here
         
         sequence_output = self.hidden_dropout(sequence_output)
         
@@ -79,13 +81,15 @@ class BertForEntity(BertPreTrainedModel):
         spans_width_embedding = self.width_embedding(spans_width)
            
         # context hiddens
-        ctx_start_embedding = batched_index_select(sequence_output, spans_start - 1)
-        ctx_end_embedding = batched_index_select(sequence_output, spans_end + 1)
+        if False:
+            context_lef, context_rig = self.context_hidden(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)  # New here
+            ctx_start_embedding = batched_index_select(sequence_output, spans_start - 1)
+            ctx_end_embedding = batched_index_select(sequence_output, spans_end + 1)
         
         # Concatenate embeddings of left/right points and the width embedding
         spans_embedding = torch.cat((
             spans_start_embedding, spans_end_embedding, 
-            ctx_start_embedding, ctx_end_embedding,
+            # ctx_start_embedding, ctx_end_embedding,
             spans_width_embedding
         ), dim=-1)
         """
