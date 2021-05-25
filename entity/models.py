@@ -29,16 +29,17 @@ class BertForEntity(BertPreTrainedModel):
         self.width_embedding = nn.Embedding(max_span_length+1, width_embedding_dim)
         # self.add_cls = torch.nn.ConstantPad2d((1,0,0,0), 101)  # [CLS]
         self.add_sep = torch.nn.ConstantPad2d((0,1,0,0), 101)  # [SEP]
-        self.context_lstm = nn.LSTM(
-            input_size=config.hidden_size,  # 768
-            hidden_size=head_hidden_dim,  # 150
-            num_layers=1,
-            dropout=0.1,
-            bidirectional=True)
         
         inp_dim = config.hidden_size * 2 + width_embedding_dim
         if False:
+            self.context_lstm = nn.LSTM(
+                input_size=config.hidden_size,  # 768
+                hidden_size=head_hidden_dim,  # 150
+                num_layers=1,
+                dropout=0.1,
+                bidirectional=True)
             inp_dim += head_hidden_dim * 2
+            
         self.ner_classifier = nn.Sequential(
             FeedForward(input_dim=inp_dim, 
                         num_layers=2,
