@@ -27,7 +27,6 @@ class BertForEntity(BertPreTrainedModel):
         self.bert = BertModel(config)
         self.hidden_dropout = nn.Dropout(config.hidden_dropout_prob)
         self.width_embedding = nn.Embedding(max_span_length+1, width_embedding_dim)
-        self.embeddings = self.bert.embeddings
         # self.add_cls = torch.nn.ConstantPad2d((1,0,0,0), 101)  # [CLS]
         self.add_sep = torch.nn.ConstantPad2d((0,1,0,0), 101)  # [SEP]
         self.context_lstm = nn.LSTM(
@@ -49,7 +48,7 @@ class BertForEntity(BertPreTrainedModel):
         self.init_weights()
     
     def context_hidden(input_ids, token_type_ids=None, attention_mask=None):
-        embeddings = self.embeddings(self.add_sep(input_ids), token_type_ids=token_type_ids)
+        embeddings = self.bert.embeddings(self.add_sep(input_ids), token_type_ids=token_type_ids)
         
         packed = pack(embeddings, attention_mask.sum(-1) + 1,  # add [SEP]
                       batch_first=batch_first, enforce_sorted=False)
