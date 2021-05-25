@@ -2,6 +2,8 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 from torch.nn import CrossEntropyLoss
+from torch.nn.utils.rnn import pack_padded_sequence as pack
+from torch.nn.utils.rnn import pad_packed_sequence as unpack
 
 from allennlp.nn.util import batched_index_select
 from allennlp.nn import util, Activation
@@ -25,9 +27,18 @@ class BertForEntity(BertPreTrainedModel):
         self.bert = BertModel(config)
         self.hidden_dropout = nn.Dropout(config.hidden_dropout_prob)
         self.width_embedding = nn.Embedding(max_span_length+1, width_embedding_dim)
+        self.embeddings = self.bert.bert.embeddings
+        # self.add_cls = torch.nn.ConstantPad2d((1,0,0,0), 101)  # [CLS]
+        self.add_sep = torch.nn.ConstantPad2d((0,1,0,0), 101)  # [SEP]
+        self.context_lstm = nn.LSTM(
+            input_size=self.bert.hidden_size,  # 768
+            hidden_size=head_hidden_dim,  # 150
+            num_layers=2,
+            dropout=0.1,
+            bidirectional=True)
         
         self.ner_classifier = nn.Sequential(
-            FeedForward(input_dim=config.hidden_size*2+width_embedding_dim, 
+            FeedForward(input_dim=config.hidden_size*4+width_embedding_dim, 
                         num_layers=2,
                         hidden_dims=head_hidden_dim,
                         activations=F.relu,
@@ -36,14 +47,28 @@ class BertForEntity(BertPreTrainedModel):
         )
 
         self.init_weights()
-
+    
+    def context_hidden(input_ids, token_type_ids=None, attention_mask=None):
+        embeddings = self.embeddings(self.add_sep(input_ids), token_type_ids=token_type_ids)
+        
+        packed = pack(embeddings, attention_mask.sum(-1) + 1,  # add [SEP]
+                      batch_first=batch_first, enforce_sorted=False)
+        token_hidden, (h_n, c_n) = self.context_lstm(packed)
+        # [batch, sequence_length w/ [CLS] [SEP], hidden_size * n_direction]
+        token_hidden = unpack(token_hidden, batch_first=batch_first)[0]
+        # [batch, sequence_length w/ [CLS] [SEP], hidden_size * n_direction]
+        token_hidden = token_hidden.view(token_hidden.shape[0], token_hidden.shape[1], 2, -1)
+        # [batch, sequence_length w/ [CLS] [SEP], hidden_size]
+        return token_hidden[:,:,0], token_hidden[:,:,1]
+    
     def _get_span_embeddings(self, input_ids, spans, token_type_ids=None, attention_mask=None):
         sequence_output, pooled_output = self.bert(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)
+        context_lef, context_rig = self.context_hidden(input_ids=input_ids, token_type_ids=token_type_ids, attention_mask=attention_mask)  # New here
         
         sequence_output = self.hidden_dropout(sequence_output)
-
+        
         """
-        spans: [batch_size, num_spans, 3]; 0: left_ned, 1: right_end, 2: width
+        spans: [batch_size, num_spans, 3]; 0: left_end, 1: right_end, 2: width
         spans_mask: (batch_size, num_spans, )
         """
         spans_start = spans[:, :, 0].view(spans.size(0), -1)
@@ -53,9 +78,17 @@ class BertForEntity(BertPreTrainedModel):
 
         spans_width = spans[:, :, 2].view(spans.size(0), -1)
         spans_width_embedding = self.width_embedding(spans_width)
-
+           
+        # context hiddens
+        ctx_start_embedding = batched_index_select(sequence_output, spans_start - 1)
+        ctx_end_embedding = batched_index_select(sequence_output, spans_end + 1)
+        
         # Concatenate embeddings of left/right points and the width embedding
-        spans_embedding = torch.cat((spans_start_embedding, spans_end_embedding, spans_width_embedding), dim=-1)
+        spans_embedding = torch.cat((
+            spans_start_embedding, spans_end_embedding, 
+            ctx_start_embedding, ctx_end_embedding,
+            spans_width_embedding
+        ), dim=-1)
         """
         spans_embedding: (batch_size, num_spans, hidden_size*2+embedding_dim)
         """
@@ -72,6 +105,8 @@ class BertForEntity(BertPreTrainedModel):
 
         if spans_ner_label is not None:
             loss_fct = CrossEntropyLoss(reduction='sum')
+            # from entity.label_smoothing import LabelSmoothingLoss
+            # ls_loss = LabelSmoothingLoss(reduction='sum', smoothing=0.1))
             if attention_mask is not None:
                 active_loss = spans_mask.view(-1) == 1
                 active_logits = logits.view(-1, logits.shape[-1])
@@ -192,7 +227,7 @@ class EntityModel():
         end2idx = []
         
         bert_tokens = []
-        bert_tokens.append(self.tokenizer.cls_token)
+        bert_tokens.append(self.tokenizer.cls_token)  # Add [CLS] here
         for token in tokens:
             start2idx.append(len(bert_tokens))
             sub_tokens = self.tokenizer.tokenize(token)
@@ -336,4 +371,6 @@ class EntityModel():
             output_dict['ner_probs'] = pred_prob
             output_dict['ner_last_hidden'] = hidden
 
-        return output_dict
+        return output_dict 
+    
+    
