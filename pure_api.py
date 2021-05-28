@@ -168,6 +168,35 @@ class PureApi(object):
             offset += sent_len
         return results_in_doc
 
+    def output_results_for_ccks(self, js):
+        # no ``docs'' here, inputs are in a sentence text list.
+        if js is None:
+            js = self.js
+        doc = js[0]
+        results = []
+        sentences, ner = doc['sentences'], doc['predicted_ner']
+        offset = 0
+        for s_idx, sent, ents in enumerate(zip(sentences, ner)):
+            sent_len = len(sent)
+            tags = ['O'] * sent_len
+            # sentence_text = ''.join(sent)
+            for l, r, tp in ents:
+                for pivot in range(l - offset, r - offset + 1):
+                    if pivot == l - offset:
+                        pos_t = 'B'
+                    elif pivot == r - offset:
+                        pos_t = 'E'
+                    else:
+                        pos_t = 'I'
+                    tags[pivot] = '{}-{}'.format(pos_t, tp)
+            results.append(u'\u0001'.join([
+                str(s_idx + 1),
+                ''.join(sent),
+                ' '.join(tags)
+            ]))
+            offset += sent_len
+        return results
+
     def evaluate(self, documents=None):
         # predict on documents with labels, evaluate for performance
         test_samples, test_ner = convert_dataset_to_samples(

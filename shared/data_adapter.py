@@ -1,6 +1,7 @@
 import sys
 import jsonlines
 from tqdm import tqdm
+from collections import defaultdict
 sys.path.append('/home/chendian/doc_ner')
 
 
@@ -39,6 +40,8 @@ A pure-json is like this:
 
 def ner_to_pure_json(ner_path, pure_path):
     # ner file for one single pure json
+    ent_len = defaultdict(int)
+    ent_type_set = set()
     ret = [{"doc_key": "default-doc",
             "sentences": [],
             "ner": [],
@@ -64,12 +67,16 @@ def ner_to_pure_json(ner_path, pure_path):
                 # no idx+1 here for PURE's span design
                 entities.append(
                     (head + offset, idx + offset, ent_type))
+                ent_len[idx-head+1] += 1
+                ent_type_set.add(ent_type)
                 flag, head = 0, -1
                 ent_type = ""
         else:
             if flag == 1:
                 entities.append(
                     (head + offset, idx + offset, ent_type))
+                ent_len[idx-head+1] += 1
+                ent_type_set.add(ent_type)
 
         return words, entities
 
@@ -86,6 +93,7 @@ def ner_to_pure_json(ner_path, pure_path):
                 char_list, tag_list, offset=offset)
             ret[0]['sentences'].append(words)
             ret[0]['ner'].append(entities)
+            ret[0]['relations'].append([])
             offset += len(words)
             char_list, tag_list = [], []
     else:
@@ -94,10 +102,13 @@ def ner_to_pure_json(ner_path, pure_path):
                 char_list, tag_list)
             ret[0]['sentences'].append(words)
             ret[0]['ner'].append(entities)
+            ret[0]['relations'].append([])
             offset += len(words)
             char_list, tag_list = [], []
 
     print("PURE_PATH", pure_path)
+    print(sorted(ent_len.items()))
+    print(ent_type_set)
     with jsonlines.open(pure_path, mode='w') as writer:
         writer.write_all(ret)
     return ret
