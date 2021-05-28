@@ -1,10 +1,10 @@
-import json
-import argparse
 import os
 import sys
+import time
+import json
 import random
 import logging
-import time
+import argparse
 from tqdm import tqdm
 import numpy as np
 
@@ -16,10 +16,12 @@ from entity.models import EntityModel
 from transformers import AdamW, get_linear_schedule_with_warmup
 import torch
 
+
 logging.basicConfig(format='%(asctime)s - %(levelname)s - %(name)s - %(message)s',
                     datefmt='%m/%d/%Y %H:%M:%S',
                     level=logging.INFO)
 logger = logging.getLogger('root')
+
 
 def save_model(model, args):
     """
@@ -30,10 +32,8 @@ def save_model(model, args):
     model_to_save.save_pretrained(args.output_dir)
     model.tokenizer.save_pretrained(args.output_dir)
 
-def output_ner_predictions(model, batches, dataset, output_file):
-    """
-    Save the prediction as a json file
-    """
+
+def ner_predictions(model, batches, dataset):
     ner_result = {}
     span_hidden_table = {}
     tot_pred_ett = 0
@@ -45,13 +45,13 @@ def output_ner_predictions(model, batches, dataset, output_file):
             k = sample['doc_key'] + '-' + str(sample['sentence_ix'])
             ner_result[k] = []
             for span, pred in zip(sample['spans'], preds):
-                span_id = '%s::%d::(%d,%d)'%(sample['doc_key'], sample['sentence_ix'], span[0]+off, span[1]+off)
+                span_id = '%s::%d::(%d,%d)' % (sample['doc_key'], sample['sentence_ix'], span[0] + off, span[1] + off)
                 if pred == 0:
                     continue
-                ner_result[k].append([span[0]+off, span[1]+off, ner_id2label[pred]])
+                ner_result[k].append([span[0] + off, span[1] + off, ner_id2label[pred]])
             tot_pred_ett += len(ner_result[k])
 
-    logger.info('Total pred entities: %d'%tot_pred_ett)
+    logger.info('Total pred entities: %d' % tot_pred_ett)
 
     js = dataset.js
     for i, doc in enumerate(js):
@@ -62,16 +62,26 @@ def output_ner_predictions(model, batches, dataset, output_file):
             if k in ner_result:
                 doc["predicted_ner"].append(ner_result[k])
             else:
-                logger.info('%s not in NER results!'%k)
+                logger.info('%s not in NER results!' % k)
                 doc["predicted_ner"].append([])
-            
+
             doc["predicted_relations"].append([])
 
         js[i] = doc
 
+    return js
+
+
+def output_ner_predictions(model, batches, dataset, output_file):
+
+    # predict ner and save results in js
+    js = ner_predictions(model, batches, dataset)
+
+    # Save the prediction as a json file
     logger.info('Output predictions to %s..'%(output_file))
     with open(output_file, 'w') as f:
         f.write('\n'.join(json.dumps(doc, cls=NpEncoder) for doc in js))
+
 
 def evaluate(model, batches, tot_gold):
     """
@@ -107,11 +117,13 @@ def evaluate(model, batches, tot_gold):
     logger.info('Used time: %f'%(time.time()-c_time))
     return f1
 
+
 def setseed(seed):
     random.seed(seed)
     torch.manual_seed(seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

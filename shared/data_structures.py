@@ -382,6 +382,19 @@ class ClusterMember:
         return f"<{self.sentence.sentence_ix}> " + self.span.__repr__()
 
 
+class DictArgs(dict):
+    __setattr__ = dict.__setitem__
+    __getattr__ = dict.__getitem__
+
+    def __init__(self, dict_obj):
+        super().__init__()
+        for k, v in dict_obj.items():
+            self[k] = v
+
+    def __repr__(self):
+        return dict.__repr__(self)
+
+
 ####################
 
 # Code to do evaluation of predictions for a loaded dataset.
