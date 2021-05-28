@@ -127,10 +127,8 @@ class PureApi(object):
             documents = self.documents
         test_batches = self.turn_documents_into_batches(
             test_data=documents)
-        self.js = ner_predictions(
-            model=self.model,
-            batches=test_batches,
-            dataset=self)
+        self.js = self.ner_predictions(
+            batches=test_batches, js=self.js)
         return self.js
 
 

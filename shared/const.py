@@ -1,11 +1,24 @@
 task_ner_labels = {
-    'msra': [u"公司", u"人名", u"地址"],
-    'onto4': ['ORG', 'PER', 'LOC', 'GPE'],
-    'resume': [u"公司", u"人名", u"地址", u"学历", u"专业", u"国籍", u"民族", u"职称"],
-    'findoc': [u"公司", u"人名", u"地址", u"产品业务", u"文件"],
-    'ace04': ['FAC', 'WEA', 'LOC', 'VEH', 'GPE', 'ORG', 'PER'],
-    'ace05': ['FAC', 'WEA', 'LOC', 'VEH', 'GPE', 'ORG', 'PER'],
-    'scierc': ['Method', 'OtherScientificTerm', 'Task', 'Generic', 'Material', 'Metric'],
+    # Chinese Corpus
+    'msra':     [u"公司", u"人名", u"地址"],
+    'onto4':    ['ORG', 'PER', 'LOC', 'GPE'],
+    'resume':   [u"公司", u"人名", u"地址", u"学历", u"专业", u"国籍", u"民族", u"职称"],
+    'findoc':   [u"公司", u"人名", u"地址", u"产品业务", u"文件"],
+    # English Corpus
+    'ace04':    ['FAC', 'WEA', 'LOC', 'VEH', 'GPE', 'ORG', 'PER'],
+    'ace05':    ['FAC', 'WEA', 'LOC', 'VEH', 'GPE', 'ORG', 'PER'],
+    'scierc':   ['Method', 'OtherScientificTerm', 'Task', 'Generic', 'Material', 'Metric'],
+}
+
+
+task_max_span_length = {
+    'msra': 16,
+    'onto4': 16,
+    'resume': 16,
+    'findoc': 40,
+    'ace04': 8,
+    'ace05': 8,
+    'scierc': 8,
 }
 
 
@@ -16,15 +29,16 @@ task_rel_labels = {
 }
 
 
+TASK_NAME = 'findoc'
 CONFIG_FOR_PURE_API = {
-    'task': 'findoc',
+    'task': TASK_NAME,
     'do_eval': True,
     'eval_test': True,
 
     # hyper-parameters
     'context_window': 0,
     'eval_batch_size': 4,
-    'max_span_length': 40,
+    'max_span_length': task_max_span_length[TASK_NAME],
     'take_context_module': False,
 
     # path to Bert
