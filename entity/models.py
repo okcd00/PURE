@@ -29,8 +29,7 @@ class BertForEntity(BertPreTrainedModel):
         self.width_embedding = nn.Embedding(max_span_length+1, width_embedding_dim)
         inp_dim = config.hidden_size * 2 + width_embedding_dim
 
-        # self.take_context_module = True
-        self.take_context_module = config.take_context_module
+        self.take_context_module = False
         if self.take_context_module:
             self.add_cls = torch.nn.ConstantPad2d((1,0,0,0), 101)  # [CLS]
             self.add_sep = torch.nn.ConstantPad2d((0,1,0,0), 102)  # [SEP]
