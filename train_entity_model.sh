@@ -1,14 +1,14 @@
-task_name=resume
+task_name=ccks
 
 
 python run_entity.py \
-    --do_train --do_eval --eval_test \
+    --do_train --do_eval \
     --learning_rate=1e-5 \
     --task_learning_rate=5e-4 \
     --train_batch_size=16 \
     --max_span_length=16 \
     --num_epoch 50 \
-    --print_loss_step 250 \
+    --print_loss_step 500 \
     --context_window 0 \
     --task ${task_name} \
     --data_dir ./data/${task_name} \

@@ -4,6 +4,10 @@ task_ner_labels = {
     'onto4':    ['ORG', 'PER', 'LOC', 'GPE'],
     'resume':   [u"公司", u"人名", u"地址", u"学历", u"专业", u"国籍", u"民族", u"职称"],
     'findoc':   [u"公司", u"人名", u"地址", u"产品业务", u"文件"],
+    'ccks':     ['cellno', 'devzone', 'distance', 'poi', 'floorno',
+                 'roadno', 'intersection', 'city', 'houseno',
+                 'village_group', 'town', 'subpoi', 'assist',
+                 'community', 'district', 'road', 'prov'],
     # English Corpus
     'ace04':    ['FAC', 'WEA', 'LOC', 'VEH', 'GPE', 'ORG', 'PER'],
     'ace05':    ['FAC', 'WEA', 'LOC', 'VEH', 'GPE', 'ORG', 'PER'],
@@ -12,10 +16,14 @@ task_ner_labels = {
 
 
 task_max_span_length = {
+    # Chinese Corpus
     'msra': 16,
     'onto4': 16,
     'resume': 16,
+    'ccks': 18,
     'findoc': 40,
+
+    # English Corpus
     'ace04': 8,
     'ace05': 8,
     'scierc': 8,
