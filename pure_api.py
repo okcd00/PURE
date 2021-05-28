@@ -41,6 +41,7 @@ class PureApi(object):
     def load_from_jsonline(self, jsonl_file):
         self.js = [json.loads(line) for line in open(jsonl_file)]
         self.documents = [Document(js) for js in self.js]
+        return self.documents
 
     def save_as_jsonline(self, dict_list, save_path):
         # Save the documents as a jsonline file
@@ -50,6 +51,7 @@ class PureApi(object):
     def dump_prediction(self, save_path):
         # Save the prediction as a json file
         with open(save_path, 'w') as f:
+            # turn numpy objects into python objects
             f.write('\n'.join(json.dumps(doc, cls=NpEncoder)
                               for doc in self.js))
 
@@ -61,6 +63,51 @@ class PureApi(object):
         test_batches = batchify(
             test_samples, self.args.eval_batch_size)
         return test_batches
+
+    def ner_predictions(self, batches, js=None):
+        ner_result = {}
+        span_hidden_table = {}
+        tot_pred_ett = 0
+        for i in range(len(batches)):
+            output_dict = self.model.run_batch(
+                batches[i], training=False)
+            pred_ner = output_dict['pred_ner']
+            for sample, preds in zip(batches[i], pred_ner):
+                off = sample['sent_start_in_doc'] - sample['sent_start']
+                k = sample['doc_key'] + '-' + str(sample['sentence_ix'])
+                ner_result[k] = []
+                for span, pred in zip(sample['spans'], preds):
+                    span_id = '%s::%d::(%d,%d)' % (
+                        sample['doc_key'],
+                        sample['sentence_ix'],
+                        span[0] + off, span[1] + off)
+                    if pred == 0:
+                        continue
+                    ner_result[k].append([
+                        span[0] + off, span[1] + off,
+                        self.ner_id2label[pred]
+                    ])
+                tot_pred_ett += len(ner_result[k])
+
+        logger.info('Total pred entities: %d' % tot_pred_ett)
+
+        if js is None:
+            js = self.js
+
+        for i, doc in enumerate(js):
+            doc["predicted_ner"] = []
+            doc["predicted_relations"] = []
+            for j in range(len(doc["sentences"])):
+                k = doc['doc_key'] + '-' + str(j)
+                if k in ner_result:
+                    doc["predicted_ner"].append(ner_result[k])
+                else:
+                    logger.info('%s not in NER results!' % k)
+                    doc["predicted_ner"].append([])
+
+                doc["predicted_relations"].append([])
+            js[i] = doc
+        return js
 
     def evaluate(self, documents=None):
         # predict on documents with labels, evaluate for performance
