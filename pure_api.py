@@ -196,7 +196,7 @@ class PureApi(object):
         return self.output_results_for_p5(answers)
 
 
-if __name__ == "__main__":
+def test_10000_cases():
     pure_api = PureApi(
         load_model_dir='/home/chendian/PURE/output_dir/findoc_old/')
 
@@ -210,3 +210,9 @@ if __name__ == "__main__":
     # output: [[{'span': [4, 12], 'value': '庖丁科技有限公司', 'type': 'company'}],
     #          [{'span': [0, 3], 'value': '拼多多', 'type': 'company'}]]
     answers = pure_api.output_results_for_p5(js=result_js)
+    return answers
+
+
+if __name__ == "__main__":
+    pa = PureApi(args=None, load_model_dir='/home/chendian/PURE/output_dir/findoc_old/')
+    answers = pa.batch_extract(['庖丁科技是一家金融科技公司', '国务院发布了新的《行政管理办法》'])
