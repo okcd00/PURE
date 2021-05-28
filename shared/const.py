@@ -31,13 +31,15 @@ task_rel_labels = {
 
 TASK_NAME = 'findoc'
 CONFIG_FOR_PURE_API = {
+    # basic settings for prediction
     'task': TASK_NAME,
     'do_eval': True,
     'eval_test': True,
 
     # hyper-parameters
     'context_window': 0,
-    'eval_batch_size': 4,
+    'train_batch_size': 8,
+    'eval_batch_size': 8,
     'max_span_length': task_max_span_length[TASK_NAME],
     'take_context_module': False,
 
@@ -47,10 +49,24 @@ CONFIG_FOR_PURE_API = {
     'bert_model_dir': '/data/chend/model_files/chinese_L-12_H-768_A-12/',
 
     # path to the file for predicting, and path to the dump file
-    'data_dir': './data/test_files/',  # test.json
-    'output_dir': './data/output_files/',  # ent_pred_test.json
-    'test_pred_filename': 'ent_pred_test.json',
+    'data_dir': './data/test_files/',  # put test.json here for predicting
+    'output_dir': './data/output_files/',  # the results in this directory
+    'test_pred_filename': 'ent_pred_test.json',  # the results file's name
 }
+
+
+is_training = False
+if is_training:
+    CONFIG_FOR_PURE_API.update({
+        'seed': 0,
+        'num_epoch': 100,
+        'learning_rate': 1e-5,
+        'task_learning_rate': 1e-4,
+        'warmup_proportion': 0.1,
+        'print_loss_step': 500,
+        'eval_per_epoch': 1,
+        'do_train': True,
+    })
 
 
 def get_labelmap(label_list):

@@ -38,8 +38,16 @@ class PureApi(object):
         num_ner_labels = len(task_ner_labels[args.task]) + 1
         self.model = EntityModel(args, num_ner_labels=num_ner_labels)
 
-    def load_from_jsonline(self, jsonl_file):
-        self.js = [json.loads(line) for line in open(jsonl_file)]
+    def generate_document_from_sentences(self, sentences, save_path=None):
+        # generate document obj without labels
+        dict_list = [{  # in this case, there's only one doc
+            "doc_key": 'default-doc',
+            "sentences": [[c for c in text] for text in sentences],
+            "ner": [[]] * len(sentences),
+            "relations": [[]] * len(sentences)}]
+        if save_path:
+            self.save_as_jsonline(dict_list, save_path)
+        self.js = dict_list
         self.documents = [Document(js) for js in self.js]
         return self.documents
 
@@ -47,6 +55,11 @@ class PureApi(object):
         # Save the documents as a jsonline file
         with jsonlines.open(save_path, mode='w') as writer:
             writer.write_all(dict_list)
+
+    def load_from_jsonline(self, jsonl_file):
+        self.js = [json.loads(line) for line in open(jsonl_file)]
+        self.documents = [Document(js) for js in self.js]
+        return self.documents
 
     def dump_prediction(self, save_path):
         # Save the prediction as a json file
@@ -109,6 +122,52 @@ class PureApi(object):
             js[i] = doc
         return js
 
+    def output_results(self, js=None):
+        outputs = {}
+        if js is None:
+            js = self.js
+        for doc in js:
+            doc_id = doc['doc_key']
+            results_in_doc = []
+            sentences, ner = doc['sentences'], doc["predicted_ner"]
+            offset = 0
+            for sent, ents in zip(sentences, ner):
+                results_in_sent = []
+                sent_len = len(sent)
+                # sentence_text = ''.join(sent)
+                for l, r, tp in ents:
+                    results_in_sent.append(dict(
+                        value=''.join(sent[l - offset: r - offset + 1]),
+                        span=(l - offset, r - offset + 1),
+                        type=tp
+                    ))
+                results_in_doc.append(results_in_sent)
+                offset += sent_len
+            outputs[doc_id] = results_in_doc
+        return outputs
+
+    def output_results_for_p5(self, js):
+        # no ``docs'' here, inputs are in a sentence text list.
+        if js is None:
+            js = self.js
+        doc = js[0]
+        results_in_doc = []
+        sentences, ner = doc['sentences'], doc['predicted_ner']
+        offset = 0
+        for sent, ents in zip(sentences, ner):
+            results_in_sent = []
+            sent_len = len(sent)
+            # sentence_text = ''.join(sent)
+            for l, r, tp in ents:
+                results_in_sent.append(dict(
+                    value=''.join(sent[l - offset: r - offset + 1]),
+                    span=(l - offset, r - offset + 1),
+                    type=tp
+                ))
+            results_in_doc.append(results_in_sent)
+            offset += sent_len
+        return results_in_doc
+
     def evaluate(self, documents=None):
         # predict on documents with labels, evaluate for performance
         test_samples, test_ner = convert_dataset_to_samples(
@@ -131,6 +190,23 @@ class PureApi(object):
             batches=test_batches, js=self.js)
         return self.js
 
+    def batch_extract(self, sentences):
+        documents = self.generate_document_from_sentences(sentences)
+        answers = self.extract(documents)
+        return self.output_results_for_p5(answers)
+
 
 if __name__ == "__main__":
-    pure_api = PureApi(load_model_dir='')
+    pure_api = PureApi(
+        load_model_dir='/home/chendian/PURE/output_dir/findoc_old/')
+
+    # input:  ['今天我在庖丁科技有限公司吃饭。',
+    #          '拼多多这个公司真是太拼了。']
+    documents = pure_api.load_from_jsonline(
+        jsonl_file='/home/chendian/PURE/data/findoc/test.json')
+
+    result_js = pure_api.extract(documents=documents)
+
+    # output: [[{'span': [4, 12], 'value': '庖丁科技有限公司', 'type': 'company'}],
+    #          [{'span': [0, 3], 'value': '拼多多', 'type': 'company'}]]
+    answers = pure_api.output_results_for_p5(js=result_js)
