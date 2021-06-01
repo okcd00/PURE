@@ -19,7 +19,7 @@ def batchify(samples, batch_size, show_single_batch=False):
         if len(samples[i]['tokens']) > 350:
             to_single_batch.append(i)
 
-    for i in to_single_batch:
+    for i in to_single_batch[::-1]:
         try:
             if show_single_batch:
                 logger.info('Single batch sample: %s-%d',
