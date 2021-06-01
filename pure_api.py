@@ -123,6 +123,7 @@ class PureApi(object):
         return js
 
     def output_results(self, js=None):
+        # consider about doc-level NER
         outputs = {}
         if js is None:
             js = self.js
@@ -176,7 +177,7 @@ class PureApi(object):
         results = []
         sentences, ner = doc['sentences'], doc['predicted_ner']
         offset = 0
-        for s_idx, sent, ents in enumerate(zip(sentences, ner)):
+        for s_idx, (sent, ents) in enumerate(zip(sentences, ner)):
             sent_len = len(sent)
             tags = ['O'] * sent_len
             # sentence_text = ''.join(sent)
@@ -184,6 +185,8 @@ class PureApi(object):
                 for pivot in range(l - offset, r - offset + 1):
                     if pivot == l - offset:
                         pos_t = 'B'
+                        if l == r:
+                            pos_t = 'S'
                     elif pivot == r - offset:
                         pos_t = 'E'
                     else:
@@ -219,10 +222,14 @@ class PureApi(object):
             batches=test_batches, js=self.js)
         return self.js
 
-    def batch_extract(self, sentences):
+    def batch_extract(self, sentences, output_method='p5'):
         documents = self.generate_document_from_sentences(sentences)
         answers = self.extract(documents)
-        return self.output_results_for_p5(answers)
+        if output_method in ['ccks']:
+            return self.output_results_for_ccks(answers)
+        if output_method in ['p5']:
+            return self.output_results_for_p5(answers)
+        return self.output_results(answers)
 
 
 def test_10000_cases():
