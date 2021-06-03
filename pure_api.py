@@ -139,7 +139,7 @@ class PureApi(object):
                 for l, r, tp in ents:
                     results_in_sent.append(dict(
                         value=''.join(sent[l - offset: r - offset + 1]),
-                        span=(l - offset, r - offset + 1),
+                        span=[int(l - offset), int(r - offset + 1)],
                         type=tp
                     ))
                 results_in_doc.append(results_in_sent)
@@ -162,7 +162,7 @@ class PureApi(object):
             for l, r, tp in ents:
                 results_in_sent.append(dict(
                     value=''.join(sent[l - offset: r - offset + 1]),
-                    span=(l - offset, r - offset + 1),
+                    span=[int(l - offset), int(r - offset + 1)],
                     type=tp
                 ))
             results_in_doc.append(results_in_sent)
