@@ -74,6 +74,7 @@ if is_training:
         'print_loss_step': 500,
         'eval_per_epoch': 1,
         'do_train': True,
+        'take_context_module': False,
     })
 
 

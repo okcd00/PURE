@@ -23,7 +23,9 @@ logger = logging.getLogger('root')
 
 
 class BertForEntity(BertPreTrainedModel):
-    def __init__(self, config, num_ner_labels, head_hidden_dim=150, width_embedding_dim=150, max_span_length=10):
+    def __init__(self, config, num_ner_labels,
+                 head_hidden_dim=150, width_embedding_dim=150,
+                 max_span_length=10, take_context_module=False):
         super().__init__(config)
 
         self.bert = BertModel(config)
@@ -31,8 +33,11 @@ class BertForEntity(BertPreTrainedModel):
         self.width_embedding = nn.Embedding(max_span_length + 1, width_embedding_dim)
         inp_dim = config.hidden_size * 2 + width_embedding_dim
 
-        self.take_context_module = False
+        self.take_context_module = take_context_module
         if self.take_context_module:
+            torch.backends.cudnn.enabled = False
+            torch.backends.cudnn.benchmark = True
+
             self.add_pad = torch.nn.ConstantPad2d((0, 1, 0, 0), 0)  # [PAD]
             self.add_cls = torch.nn.ConstantPad2d((1, 0, 0, 0), 101)  # [CLS]
             self.add_sep = torch.nn.ConstantPad2d((0, 1, 0, 0), 102)  # [SEP]
@@ -261,8 +266,11 @@ class EntityModel():
         else:
             self.tokenizer = BertTokenizer.from_pretrained(vocab_name)
             self.bert_model = BertForEntity.from_pretrained(
-                bert_model_name, num_ner_labels=num_ner_labels,
-                max_span_length=args.max_span_length)
+                bert_model_name,
+                num_ner_labels=num_ner_labels,
+                max_span_length=args.max_span_length,
+                take_context_module=args.take_context_module,
+            )
 
         self._model_device = 'cpu'
         self.move_model_to_cuda()

@@ -165,6 +165,8 @@ if __name__ == '__main__':
 
     parser.add_argument('--use_albert', action='store_true', 
                         help="whether to use ALBERT model")
+    parser.add_argument('--take_context_module', action='store_true',
+                        help="whether to take context module for PURE")
     parser.add_argument('--model', type=str, default='bert-base-uncased', 
                         help="the base model name (a huggingface model)")
     parser.add_argument('--bert_model_dir', type=str, default=None, 
