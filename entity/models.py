@@ -29,6 +29,7 @@ class BertForEntity(BertPreTrainedModel):
         super().__init__(config)
 
         self.bert = BertModel(config)
+        self.max_span_length = max_span_length
         self.hidden_dropout = nn.Dropout(config.hidden_dropout_prob)
         self.width_embedding = nn.Embedding(max_span_length + 1, width_embedding_dim)
         inp_dim = config.hidden_size * 2 + width_embedding_dim
@@ -109,6 +110,7 @@ class BertForEntity(BertPreTrainedModel):
         spans_end_embedding = batched_index_select(sequence_output, spans_end)
 
         spans_width = spans[:, :, 2].view(spans.size(0), -1)
+        spans_width = torch.clamp(spans_width, min=None, max=self.max_span_length)
         spans_width_embedding = self.width_embedding(spans_width)
         embedding_case = [
             spans_start_embedding,
@@ -180,9 +182,9 @@ class AlbertForEntity(AlbertPreTrainedModel):
         super().__init__(config)
 
         self.albert = AlbertModel(config)
+        self.max_span_length = max_span_length
         self.hidden_dropout = nn.Dropout(config.hidden_dropout_prob)
         self.width_embedding = nn.Embedding(max_span_length + 1, width_embedding_dim)
-
         self.ner_classifier = nn.Sequential(
             FeedForward(input_dim=config.hidden_size * 2 + width_embedding_dim,
                         num_layers=2,
@@ -201,7 +203,7 @@ class AlbertForEntity(AlbertPreTrainedModel):
         sequence_output = self.hidden_dropout(sequence_output)
 
         """
-        spans: [batch_size, num_spans, 3]; 0: left_ned, 1: right_end, 2: width
+        spans: [batch_size, num_spans, 3]; 0: left_end, 1: right_end, 2: width
         spans_mask: (batch_size, num_spans, )
         """
         spans_start = spans[:, :, 0].view(spans.size(0), -1)
@@ -210,6 +212,7 @@ class AlbertForEntity(AlbertPreTrainedModel):
         spans_end_embedding = batched_index_select(sequence_output, spans_end)
 
         spans_width = spans[:, :, 2].view(spans.size(0), -1)
+        spans_width = torch.clamp(spans_width, min=None, max=self.max_span_length)
         spans_width_embedding = self.width_embedding(spans_width)
 
         spans_embedding = torch.cat((spans_start_embedding, spans_end_embedding, spans_width_embedding), dim=-1)
