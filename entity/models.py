@@ -24,15 +24,23 @@ logger = logging.getLogger('root')
 
 class BertForEntity(BertPreTrainedModel):
     def __init__(self, config, num_ner_labels,
-                 head_hidden_dim=150, width_embedding_dim=150,
-                 max_span_length=10, take_context_module=False):
+                 max_span_length=10,
+                 head_hidden_dim=150,
+                 width_embedding_dim=150,
+                 take_name_module=True,
+                 take_context_module=False):
         super().__init__(config)
 
         self.bert = BertModel(config)
         self.max_span_length = max_span_length
         self.hidden_dropout = nn.Dropout(config.hidden_dropout_prob)
         self.width_embedding = nn.Embedding(max_span_length + 1, width_embedding_dim)
-        inp_dim = config.hidden_size * 2 + width_embedding_dim
+        inp_dim = width_embedding_dim
+
+        self.take_name_module = take_name_module
+        if self.take_name_module:
+            name_hidden_size = config.hidden_size  # 768
+            inp_dim += name_hidden_size * 2
 
         self.take_context_module = take_context_module
         if self.take_context_module:
@@ -43,18 +51,19 @@ class BertForEntity(BertPreTrainedModel):
             self.add_cls = torch.nn.ConstantPad2d((1, 0, 0, 0), 101)  # [CLS]
             self.add_sep = torch.nn.ConstantPad2d((0, 1, 0, 0), 102)  # [SEP]
 
+            context_hidden_size = head_hidden_dim  # 150
             self.context_lstm = nn.LSTM(
                 input_size=config.hidden_size,  # 768
-                hidden_size=head_hidden_dim,  # 150
+                hidden_size=context_hidden_size,  # 150
                 num_layers=1,
                 dropout=0.1,
                 bidirectional=True)
-            inp_dim += head_hidden_dim * 2
+            inp_dim += context_hidden_size * 2
 
         self.ner_classifier = nn.Sequential(
             FeedForward(input_dim=inp_dim,
                         num_layers=2,
-                        hidden_dims=head_hidden_dim,
+                        hidden_dims=head_hidden_dim,  # 150
                         activations=F.relu,
                         dropout=0.2),
             nn.Linear(head_hidden_dim, num_ner_labels)
@@ -126,17 +135,20 @@ class BertForEntity(BertPreTrainedModel):
                 token_type_ids=token_type_ids,
                 attention_mask=attention_mask)  # New here
             try:
+                ctx_left = spans_start - (spans_start > 0).long()
+                ctx_right = spans_end + (spans_end > 0).long()
                 ctx_start_embedding = batched_index_select(
-                    context_lef, spans_start - (spans_start > 0).long())
+                    context_lef, ctx_left)
                 ctx_end_embedding = batched_index_select(
-                    context_rig, spans_end + (spans_end > 0).long())
-                embedding_case.extend([ctx_start_embedding, ctx_end_embedding])
+                    context_rig, ctx_right)
+                embedding_case.extend([
+                    ctx_start_embedding, ctx_end_embedding])
             except Exception as e:
                 pprint(str(e))
                 print(input_ids.shape, context_lef.shape, context_rig.shape)
                 print(input_ids)
-                print(spans_start - 1)
-                print(spans_end + 1)
+                print(spans_start - (spans_start > 0).long())
+                print(spans_end + (spans_end > 0).long())
                 raise ValueError()
 
         # Concatenate embeddings of left/right points and the width embedding
@@ -178,17 +190,47 @@ class BertForEntity(BertPreTrainedModel):
 
 
 class AlbertForEntity(AlbertPreTrainedModel):
-    def __init__(self, config, num_ner_labels, head_hidden_dim=150, width_embedding_dim=150, max_span_length=8):
+    def __init__(self, config, num_ner_labels,
+                 max_span_length=10,
+                 head_hidden_dim=150,
+                 width_embedding_dim=150,
+                 take_name_module=True,
+                 take_context_module=False):
         super().__init__(config)
 
-        self.albert = AlbertModel(config)
+        self.bert = AlbertModel(config)
         self.max_span_length = max_span_length
         self.hidden_dropout = nn.Dropout(config.hidden_dropout_prob)
         self.width_embedding = nn.Embedding(max_span_length + 1, width_embedding_dim)
+        inp_dim = width_embedding_dim
+
+        self.take_name_module = take_name_module
+        if self.take_name_module:
+            name_hidden_size = config.hidden_size  # 768
+            inp_dim += name_hidden_size * 2
+
+        self.take_context_module = take_context_module
+        if self.take_context_module:
+            torch.backends.cudnn.enabled = False
+            torch.backends.cudnn.benchmark = True
+
+            self.add_pad = torch.nn.ConstantPad2d((0, 1, 0, 0), 0)  # [PAD]
+            self.add_cls = torch.nn.ConstantPad2d((1, 0, 0, 0), 101)  # [CLS]
+            self.add_sep = torch.nn.ConstantPad2d((0, 1, 0, 0), 102)  # [SEP]
+
+            context_hidden_size = head_hidden_dim  # 150
+            self.context_lstm = nn.LSTM(
+                input_size=config.hidden_size,  # 768
+                hidden_size=context_hidden_size,  # 150
+                num_layers=1,
+                dropout=0.1,
+                bidirectional=True)
+            inp_dim += context_hidden_size * 2
+
         self.ner_classifier = nn.Sequential(
-            FeedForward(input_dim=config.hidden_size * 2 + width_embedding_dim,
+            FeedForward(input_dim=inp_dim,
                         num_layers=2,
-                        hidden_dims=head_hidden_dim,
+                        hidden_dims=head_hidden_dim,  # 150
                         activations=F.relu,
                         dropout=0.2),
             nn.Linear(head_hidden_dim, num_ner_labels)
@@ -196,9 +238,41 @@ class AlbertForEntity(AlbertPreTrainedModel):
 
         self.init_weights()
 
+    def context_hidden(self, input_ids, token_type_ids=None, attention_mask=None):
+        # [batch, sequence_length + 1], in case of right overflow
+        am = attention_mask
+        inp_ids = self.add_pad(input_ids)
+        sequence_length = am.sum(-1)
+
+        # ([batch], [batch])
+        sent_indexes = torch.arange(am.shape[0], device=am.device)
+        char_indexes = sequence_length.long().to(device=am.device)
+        indexes = (sent_indexes, char_indexes)
+        input_ids_with_sep = inp_ids.index_put_(
+            indexes, torch.tensor(102, device=am.device))
+
+        # [batch, sequence_length w/ [CLS] [SEP], embedding_size]
+        embeddings = self.bert.embeddings(
+            input_ids=input_ids_with_sep,  # self.add_sep(input_ids),
+            token_type_ids=token_type_ids)
+
+        # the LSTM part
+        packed = pack(embeddings, sequence_length + 1,  # add [SEP]
+                      batch_first=True, enforce_sorted=False)
+        token_hidden, (h_n, c_n) = self.context_lstm(packed)
+        # [batch, sequence_length w/ [CLS] [SEP], hidden_size * n_direction]
+        token_hidden = unpack(token_hidden, batch_first=True)[0]
+
+        # [batch, sequence_length w/ [CLS] [SEP], hidden_size * n_direction]
+        token_hidden = token_hidden.view(token_hidden.shape[0], token_hidden.shape[1], 2, -1)
+        # [batch, sequence_length w/ [CLS] [SEP], hidden_size] * 2 directions
+        return token_hidden[:, :, 0], token_hidden[:, :, 1]
+
     def _get_span_embeddings(self, input_ids, spans, token_type_ids=None, attention_mask=None):
-        sequence_output, pooled_output = self.albert(input_ids=input_ids, token_type_ids=token_type_ids,
-                                                     attention_mask=attention_mask)
+        sequence_output, pooled_output = self.bert(
+            input_ids=input_ids, # [batch_size, sequence_length]
+            token_type_ids=token_type_ids,
+            attention_mask=attention_mask)
 
         sequence_output = self.hidden_dropout(sequence_output)
 
@@ -214,10 +288,43 @@ class AlbertForEntity(AlbertPreTrainedModel):
         spans_width = spans[:, :, 2].view(spans.size(0), -1)
         spans_width = torch.clamp(spans_width, min=None, max=self.max_span_length)
         spans_width_embedding = self.width_embedding(spans_width)
+        embedding_case = [
+            spans_start_embedding,
+            spans_end_embedding,
+            spans_width_embedding
+        ]
 
-        spans_embedding = torch.cat((spans_start_embedding, spans_end_embedding, spans_width_embedding), dim=-1)
+        # extend context hiddens
+        if self.take_context_module:
+            # [batch_size, sequence_length w/ [CLS] [SEP], hidden_size]
+            context_lef, context_rig = self.context_hidden(
+                input_ids=input_ids,
+                token_type_ids=token_type_ids,
+                attention_mask=attention_mask)  # New here
+            try:
+                ctx_left = spans_start - (spans_start > 0).long()
+                ctx_right = spans_end + (spans_end > 0).long()
+                ctx_start_embedding = batched_index_select(
+                    context_lef, ctx_left)
+                ctx_end_embedding = batched_index_select(
+                    context_rig, ctx_right)
+                embedding_case.extend([
+                    ctx_start_embedding, ctx_end_embedding])
+            except Exception as e:
+                pprint(str(e))
+                print(input_ids.shape, context_lef.shape, context_rig.shape)
+                print(input_ids)
+                print(spans_start - (spans_start > 0).long())
+                print(spans_end + (spans_end > 0).long())
+                raise ValueError()
+
+        # Concatenate embeddings of left/right points and the width embedding
+        spans_embedding = torch.cat(embedding_case, dim=-1)
+
         """
+        w/ or w/o context hidden vectors.
         spans_embedding: (batch_size, num_spans, hidden_size*2+embedding_dim)
+        spans_embedding: (batch_size, num_spans, hidden_size*2+head_size*2+embedding_dim)
         """
         return spans_embedding
 
@@ -233,6 +340,8 @@ class AlbertForEntity(AlbertPreTrainedModel):
 
         if spans_ner_label is not None:
             loss_fct = CrossEntropyLoss(reduction='sum')
+            # from entity.label_smoothing import LabelSmoothingLoss
+            # ls_loss = LabelSmoothingLoss(reduction='sum', smoothing=0.1))
             if attention_mask is not None:
                 active_loss = spans_mask.view(-1) == 1
                 active_logits = logits.view(-1, logits.shape[-1])
@@ -265,7 +374,9 @@ class EntityModel():
             self.tokenizer = AlbertTokenizer.from_pretrained(vocab_name)
             self.bert_model = AlbertForEntity.from_pretrained(
                 bert_model_name, num_ner_labels=num_ner_labels,
-                max_span_length=args.max_span_length)
+                max_span_length=args.max_span_length,
+                take_context_module=args.take_context_module,
+            )
         else:
             self.tokenizer = BertTokenizer.from_pretrained(vocab_name)
             self.bert_model = BertForEntity.from_pretrained(
