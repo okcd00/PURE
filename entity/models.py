@@ -102,11 +102,11 @@ class BertForEntity(BertPreTrainedModel):
         return token_hidden[:, :, 0], token_hidden[:, :, 1]
 
     def _get_span_embeddings(self, input_ids, spans, token_type_ids=None, attention_mask=None):
+        embedding_case = []
         sequence_output, pooled_output = self.bert(
-            input_ids=input_ids, # [batch_size, sequence_length]
+            input_ids=input_ids,  # [batch_size, sequence_length]
             token_type_ids=token_type_ids,
             attention_mask=attention_mask)
-
         sequence_output = self.hidden_dropout(sequence_output)
 
         """
@@ -114,35 +114,39 @@ class BertForEntity(BertPreTrainedModel):
         spans_mask: (batch_size, num_spans, )
         """
         spans_start = spans[:, :, 0].view(spans.size(0), -1)
-        spans_start_embedding = batched_index_select(sequence_output, spans_start)
         spans_end = spans[:, :, 1].view(spans.size(0), -1)
-        spans_end_embedding = batched_index_select(sequence_output, spans_end)
 
+        # name hidden vectors
+        if self.take_name_module:
+            spans_start_embedding = batched_index_select(sequence_output, spans_start)
+            spans_end_embedding = batched_index_select(sequence_output, spans_end)
+            embedding_case.extend([
+                spans_start_embedding,
+                spans_end_embedding,
+            ])
+
+        # width embeddings
         spans_width = spans[:, :, 2].view(spans.size(0), -1)
         spans_width = torch.clamp(spans_width, min=None, max=self.max_span_length)
         spans_width_embedding = self.width_embedding(spans_width)
-        embedding_case = [
-            spans_start_embedding,
-            spans_end_embedding,
-            spans_width_embedding
-        ]
+        embedding_case.append(spans_width_embedding)
 
-        # extend context hiddens
+        # context hidden vectors
         if self.take_context_module:
             # [batch_size, sequence_length w/ [CLS] [SEP], hidden_size]
             context_lef, context_rig = self.context_hidden(
                 input_ids=input_ids,
                 token_type_ids=token_type_ids,
                 attention_mask=attention_mask)  # New here
+            ctx_left = spans_start - (spans_start > 0).long()
+            ctx_right = spans_end + (spans_end > 0).long()
             try:
-                ctx_left = spans_start - (spans_start > 0).long()
-                ctx_right = spans_end + (spans_end > 0).long()
-                ctx_start_embedding = batched_index_select(
-                    context_lef, ctx_left)
-                ctx_end_embedding = batched_index_select(
-                    context_rig, ctx_right)
+                ctx_start_embedding = batched_index_select(context_lef, ctx_left)
+                ctx_end_embedding = batched_index_select(context_rig, ctx_right)
                 embedding_case.extend([
-                    ctx_start_embedding, ctx_end_embedding])
+                    ctx_start_embedding,
+                    ctx_end_embedding
+                ])
             except Exception as e:
                 pprint(str(e))
                 print(input_ids.shape, context_lef.shape, context_rig.shape)
@@ -269,11 +273,11 @@ class AlbertForEntity(AlbertPreTrainedModel):
         return token_hidden[:, :, 0], token_hidden[:, :, 1]
 
     def _get_span_embeddings(self, input_ids, spans, token_type_ids=None, attention_mask=None):
-        sequence_output, pooled_output = self.bert(
-            input_ids=input_ids, # [batch_size, sequence_length]
+        embedding_case = []
+        sequence_output, pooled_output = self.albert(
+            input_ids=input_ids,  # [batch_size, sequence_length]
             token_type_ids=token_type_ids,
             attention_mask=attention_mask)
-
         sequence_output = self.hidden_dropout(sequence_output)
 
         """
@@ -281,35 +285,39 @@ class AlbertForEntity(AlbertPreTrainedModel):
         spans_mask: (batch_size, num_spans, )
         """
         spans_start = spans[:, :, 0].view(spans.size(0), -1)
-        spans_start_embedding = batched_index_select(sequence_output, spans_start)
         spans_end = spans[:, :, 1].view(spans.size(0), -1)
-        spans_end_embedding = batched_index_select(sequence_output, spans_end)
 
+        # name hidden vectors
+        if self.take_name_module:
+            spans_start_embedding = batched_index_select(sequence_output, spans_start)
+            spans_end_embedding = batched_index_select(sequence_output, spans_end)
+            embedding_case.extend([
+                spans_start_embedding,
+                spans_end_embedding,
+            ])
+
+        # width embeddings
         spans_width = spans[:, :, 2].view(spans.size(0), -1)
         spans_width = torch.clamp(spans_width, min=None, max=self.max_span_length)
         spans_width_embedding = self.width_embedding(spans_width)
-        embedding_case = [
-            spans_start_embedding,
-            spans_end_embedding,
-            spans_width_embedding
-        ]
+        embedding_case.append(spans_width_embedding)
 
-        # extend context hiddens
+        # context hidden vectors
         if self.take_context_module:
             # [batch_size, sequence_length w/ [CLS] [SEP], hidden_size]
             context_lef, context_rig = self.context_hidden(
                 input_ids=input_ids,
                 token_type_ids=token_type_ids,
                 attention_mask=attention_mask)  # New here
+            ctx_left = spans_start - (spans_start > 0).long()
+            ctx_right = spans_end + (spans_end > 0).long()
             try:
-                ctx_left = spans_start - (spans_start > 0).long()
-                ctx_right = spans_end + (spans_end > 0).long()
-                ctx_start_embedding = batched_index_select(
-                    context_lef, ctx_left)
-                ctx_end_embedding = batched_index_select(
-                    context_rig, ctx_right)
+                ctx_start_embedding = batched_index_select(context_lef, ctx_left)
+                ctx_end_embedding = batched_index_select(context_rig, ctx_right)
                 embedding_case.extend([
-                    ctx_start_embedding, ctx_end_embedding])
+                    ctx_start_embedding,
+                    ctx_end_embedding
+                ])
             except Exception as e:
                 pprint(str(e))
                 print(input_ids.shape, context_lef.shape, context_rig.shape)
