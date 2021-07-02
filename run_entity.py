@@ -128,12 +128,19 @@ def setseed(seed):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
+    # paths
     parser.add_argument('--task', type=str, default=None, required=True)
     parser.add_argument('--data_dir', type=str, default=None, required=True, 
                         help="path to the preprocessed dataset")
     parser.add_argument('--output_dir', type=str, default='entity_output', 
                         help="output directory of the entity model")
+    parser.add_argument('--dev_pred_filename', type=str, default="ent_pred_dev.json",
+                        help="the prediction filename for the dev set")
+    parser.add_argument('--test_pred_filename', type=str, default="ent_pred_test.json",
+                        help="the prediction filename for the test set")
 
+    # hyper-params
+    parser.add_argument('--seed', type=int, default=0)
     parser.add_argument('--max_span_length', type=int, default=8, 
                         help="spans w/ length up to max_span_length are considered as candidates")
     parser.add_argument('--train_batch_size', type=int, default=32, 
@@ -152,30 +159,38 @@ if __name__ == '__main__':
                         help="how often logging the loss value during training")
     parser.add_argument('--eval_per_epoch', type=int, default=1, 
                         help="how often evaluating the trained model on dev set during training")
-    parser.add_argument("--bertadam", action="store_true", help="If bertadam, then set correct_bias = False")
+    parser.add_argument('--context_window', type=int, required=True, default=None,
+                        help="the context window size W for the entity model")
 
+    # pre-trained model selection
+    parser.add_argument('--model', type=str, default='bert-base-uncased',
+                        help="the base model name (a huggingface model)")
+    parser.add_argument('--use_albert', action='store_true',
+                        help="whether to use ALBERT model")
+    parser.add_argument('--bert_model_dir', type=str, default=None,
+                        help="the base model directory")
+    parser.add_argument("--bertadam", action="store_true",
+                        help="If bertadam, then set correct_bias = False")
+
+    # script switches
     parser.add_argument('--do_train', action='store_true', 
                         help="whether to run training")
     parser.add_argument('--do_eval', action='store_true', 
                         help="whether to run evaluation")
     parser.add_argument('--eval_test', action='store_true', 
                         help="whether to evaluate on test set")
-    parser.add_argument('--dev_pred_filename', type=str, default="ent_pred_dev.json", help="the prediction filename for the dev set")
-    parser.add_argument('--test_pred_filename', type=str, default="ent_pred_test.json", help="the prediction filename for the test set")
+    parser.add_argument('--inv_test', action='store_true',
+                        help="whether to evaluate on invariance test set")
 
-    parser.add_argument('--use_albert', action='store_true', 
-                        help="whether to use ALBERT model")
+    # ablations
+    parser.add_argument('--take_width_feature', type=bool, default=True,
+                        help="whether to take width embeddings for PURE")
+    parser.add_argument('--take_name_module', type=bool, default=True,
+                        help="whether to take name module for PURE")
     parser.add_argument('--take_context_module', action='store_true',
                         help="whether to take context module for PURE")
-    parser.add_argument('--model', type=str, default='bert-base-uncased', 
-                        help="the base model name (a huggingface model)")
-    parser.add_argument('--bert_model_dir', type=str, default=None, 
-                        help="the base model directory")
-
-    parser.add_argument('--seed', type=int, default=0)
-
-    parser.add_argument('--context_window', type=int, required=True, default=None, 
-                        help="the context window size W for the entity model")
+    parser.add_argument('--fusion_method', type=str, default='none',
+                        help="how to take the feature fusion, [none|mlp|biaffine]")
 
     args = parser.parse_args()
     args.train_data = os.path.join(args.data_dir, 'train.json')
@@ -263,7 +278,21 @@ if __name__ == '__main__':
         else:
             test_data = Dataset(args.dev_data)
             prediction_file = os.path.join(args.output_dir, args.dev_pred_filename)
-        test_samples, test_ner = convert_dataset_to_samples(test_data, args.max_span_length, ner_label2id=ner_label2id, context_window=args.context_window)
+        test_samples, test_ner = convert_dataset_to_samples(test_data, args.max_span_length,
+                                                            ner_label2id=ner_label2id,
+                                                            context_window=args.context_window)
         test_batches = batchify(test_samples, args.eval_batch_size)
         evaluate(model, test_batches, test_ner)
-        output_ner_predictions(model, test_batches, test_data, output_file=prediction_file)
+        output_ner_predictions(model, test_batches, test_data,
+                               output_file=prediction_file)
+
+    if args.inv_test:
+        test_data = Dataset(os.path.join(args.data_dir, 'inv_test.json'))
+        inv_prediction_file = os.path.join(args.output_dir, 'inv_', args.test_pred_filename)
+        test_samples, test_ner = convert_dataset_to_samples(test_data, args.max_span_length,
+                                                            ner_label2id=ner_label2id,
+                                                            context_window=args.context_window)
+        test_batches = batchify(test_samples, args.eval_batch_size)
+        evaluate(model, test_batches, test_ner)
+        output_ner_predictions(model, test_batches, test_data,
+                               output_file=inv_prediction_file)
