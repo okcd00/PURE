@@ -31,7 +31,7 @@ def batchify(samples, batch_size, show_single_batch=False):
             print(e)
             continue
         list_samples_batches.append([samples[i]])
-        samples.remove(samples[i])
+    samples = [sample for i, sample in enumerate(samples) if i not in to_single_batch]
 
     for i in range(0, len(samples), batch_size):
         list_samples_batches.append(samples[i:i + batch_size])
