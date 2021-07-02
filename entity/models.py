@@ -211,7 +211,7 @@ class AlbertForEntity(AlbertPreTrainedModel):
                  args=None):
         super().__init__(config)
 
-        self.bert = AlbertModel(config)
+        self.albert = AlbertModel(config)
         self.max_span_length = max_span_length
         self.hidden_dropout = nn.Dropout(
             config.hidden_dropout_prob)
