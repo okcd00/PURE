@@ -22,75 +22,6 @@ from pprint import pprint
 logger = logging.getLogger('root')
 
 
-class FeatureFusion(object):
-    def __init__(self, method='none',
-                 input_dim=768, head_hidden_dim=150):
-        super().__init__()
-        self.method = self.method_mapping(method)
-
-        if method in ['none', 'concat']:
-            self.fusion = self.concat_fusion
-        elif 'weighted' in method:
-            self.mlp = nn.Sequential(
-                FeedForward(input_dim=input_dim,
-                            num_layers=2,
-                            hidden_dims=head_hidden_dim,  # 150
-                            activations=F.relu,
-                            dropout=0.2),
-                nn.Linear(head_hidden_dim, 1)  # to scalar
-            )
-            self.softmax = nn.Softmax(dim=-1)
-            self.fusion = self.gated_fusion
-        elif method in ['biaffine', 'bi-affine']:
-            from modules.bi_affine import Biaffine
-            self.bi_affine = Biaffine(n_in=input_dim, n_out=1)
-            self.sigmoid = nn.Sigmoid()
-            self.fusion = self.biaffine_fusion
-        else:
-            raise ValueError(
-                "Invalid feature fusion method type: {}".format(method))
-
-    def method_mapping(self, method):
-        method = method.lower()
-        method = {
-            'gated': 'weighted-sum'
-        }.get(method, method)
-        return method
-
-    def concat_fusion(self, feature_case):
-        return torch.cat(feature_case, dim=-1)
-
-    def biaffine_fusion(self, feature_case):
-        assert len(feature_case) == 2
-        feat_1, feat_2 = feature_case
-        # [batch_size, input_dim] => [batch]
-        coeff = self.sigmoid(self.bi_affine(feat_1, feat_2))
-        # [batch_size, n_feature=2, input_dim]
-        features = torch.stack(feature_case, dim=-2)
-        # [batch, n_feature=2]
-        weights = torch.stack([coeff, 1. - coeff], dim=-1)
-
-        # [batch_size, input_dim]
-        return torch.bmm(weights, features).squeeze(1)
-
-    def gated_fusion(self, feature_case):
-        # [batch_size, n_feature, input_dim]
-        features = torch.stack(feature_case, dim=-2)
-        # [batch_size, 1, n_feature]
-        weights = self.softmax(self.mlp(features).transpose(-2, -1))
-
-        if self.method in ['weighted-sum']:
-            # [batch_size, input_dim]
-            return torch.bmm(weights, features).squeeze(1)
-        else:  # ['weighted-concat]
-            # [batch_size, n_feature, input_dim]
-            return weights.transpose(-2, -1) * features
-
-    def __call__(self, feature_case):
-        # a list of [batch_size, input_dim]
-        return self.fusion(feature_case)
-
-
 class BertForEntity(BertPreTrainedModel):
     def __init__(self, config, num_ner_labels,
                  max_span_length=10,
@@ -112,6 +43,7 @@ class BertForEntity(BertPreTrainedModel):
 
         # how to fusion multi-source features
         self.fusion_method = args.fusion_method if args else 'none'
+        from modules.feature_fusion import FeatureFusion
         self.feature_fusion = FeatureFusion(method=self.fusion_method)
 
         self.take_name_module = args.take_name_module if args else True
@@ -129,11 +61,10 @@ class BertForEntity(BertPreTrainedModel):
             self.add_sep = torch.nn.ConstantPad2d((0, 1, 0, 0), 102)  # [SEP]
 
             context_hidden_size = head_hidden_dim  # 150
-            self.context_lstm = nn.LSTM(
+            self.context_lstm = nn.LSTM(  # or nn.GRU
                 input_size=config.hidden_size,  # 768
                 hidden_size=context_hidden_size,  # 150
-                num_layers=1,
-                dropout=0.1,
+                num_layers=1, # dropout=0.1,
                 bidirectional=True)
             inp_dim += context_hidden_size * 2
 
@@ -305,11 +236,10 @@ class AlbertForEntity(AlbertPreTrainedModel):
             self.add_sep = torch.nn.ConstantPad2d((0, 1, 0, 0), 102)  # [SEP]
 
             context_hidden_size = head_hidden_dim  # 150
-            self.context_lstm = nn.LSTM(
+            self.context_lstm = nn.LSTM(  # or nn.GRU
                 input_size=config.hidden_size,  # 768
                 hidden_size=context_hidden_size,  # 150
-                num_layers=1,
-                dropout=0.1,
+                num_layers=1,  # dropout=0.1,
                 bidirectional=True)
             inp_dim += context_hidden_size * 2
 
@@ -461,7 +391,8 @@ class EntityModel():
             logger.info('Loading BERT model from {}'.format(bert_model_name))
 
         if args.use_albert:
-            self.tokenizer = AlbertTokenizer.from_pretrained(vocab_name)
+            # self.tokenizer = AlbertTokenizer.from_pretrained(vocab_name)
+            self.tokenizer = BertTokenizer.from_pretrained(vocab_name)
             self.bert_model = AlbertForEntity.from_pretrained(
                 bert_model_name,
                 num_ner_labels=num_ner_labels,
