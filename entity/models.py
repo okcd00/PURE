@@ -237,7 +237,7 @@ class AlbertForEntity(AlbertPreTrainedModel):
 
             context_hidden_size = head_hidden_dim  # 150
             self.context_lstm = nn.LSTM(  # or nn.GRU
-                input_size=config.hidden_size,  # 768
+                input_size=config.embedding_size,  # 128
                 hidden_size=context_hidden_size,  # 150
                 num_layers=1,  # dropout=0.1,
                 bidirectional=True)
@@ -268,7 +268,7 @@ class AlbertForEntity(AlbertPreTrainedModel):
             indexes, torch.tensor(102, device=am.device))
 
         # [batch, sequence_length w/ [CLS] [SEP], embedding_size]
-        embeddings = self.bert.embeddings(
+        embeddings = self.albert.embeddings(
             input_ids=input_ids_with_sep,  # self.add_sep(input_ids),
             token_type_ids=token_type_ids)
 
