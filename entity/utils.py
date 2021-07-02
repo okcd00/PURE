@@ -3,6 +3,7 @@ import json
 import logging
 
 logger = logging.getLogger('root')
+PUNC_LIST = "，；。？！……"
 
 
 def batchify(samples, batch_size, show_single_batch=False):
@@ -124,6 +125,8 @@ def convert_dataset_to_samples(dataset, max_span_length, ner_label2id=None, cont
             sample['spans_label'] = []
             for i in range(len(sent.text)):
                 for j in range(i, min(len(sent.text), i + max_span_length)):
+                    if sent.text[j] in PUNC_LIST:
+                        break  # entity spans do not cover punctuations
                     sample['spans'].append((i + sent_start, j + sent_start, j - i + 1))
                     span2id[(i, j)] = len(sample['spans']) - 1
                     if (i, j) not in sent_ner:
