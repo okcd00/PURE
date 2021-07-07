@@ -62,18 +62,27 @@ def ner_to_pure_json(ner_path, pure_path):
         flag, head = 0, -1
         ent_type = ""
         for idx, tag in enumerate(tag_list):
-            if flag == 0 and _head(tag, 'b'):
+            if flag == 0 and _head(tag, 'bs'):
                 flag = 1
                 head = idx
                 ent_type = tag.strip().split('-')[1]
-            if flag == 1 and _head(tag, 'eso'):
-                # no idx+1 here for PURE's span design
-                entities.append(
-                    (head + offset, idx + offset, ent_type))
-                ent_len[idx-head+1] += 1
-                ent_type_set.add(ent_type)
-                flag, head = 0, -1
-                ent_type = ""
+            if flag == 1:
+                if _head(tag, 'es'):
+                    # no idx+1 here for PURE's span design
+                    entities.append(
+                        (head + offset, idx + offset, ent_type))
+                    ent_len[idx-head+1] += 1
+                    ent_type_set.add(ent_type)
+                    flag, head = 0, -1
+                    ent_type = ""
+                elif _head(tag, 'o'):
+                    # no idx+1 here for PURE's span design
+                    entities.append(  # o means ends the last
+                        (head + offset, idx + offset - 1, ent_type))
+                    ent_len[idx - head] += 1
+                    ent_type_set.add(ent_type)
+                    flag, head = 0, -1
+                    ent_type = ""
         else:
             if flag == 1:
                 entities.append(
