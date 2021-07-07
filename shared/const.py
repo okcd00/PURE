@@ -8,6 +8,7 @@ task_ner_labels = {
                  'roadno', 'intersection', 'city', 'houseno',
                  'village_group', 'town', 'subpoi', 'assist',
                  'community', 'district', 'road', 'prov'],
+    'unity':    [u'实体'],  # for test training binary-judgment
     # English Corpus
     'ace04':    ['FAC', 'WEA', 'LOC', 'VEH', 'GPE', 'ORG', 'PER'],
     'ace05':    ['FAC', 'WEA', 'LOC', 'VEH', 'GPE', 'ORG', 'PER'],
@@ -17,11 +18,12 @@ task_ner_labels = {
 
 task_max_span_length = {
     # Chinese Corpus
-    'msra': 16,
+    'msra': 25,  # PER<18, COM<36, LOC<25
     'onto4': 16,
     'resume': 16,
     'ccks': 18,
-    'findoc': 40,
+    'findoc': 40,  #
+    'unity': 40,
 
     # English Corpus
     'ace04': 8,
@@ -63,14 +65,23 @@ CONFIG_FOR_PURE_API = {
 }
 
 
+use_albert = False
+if use_albert:
+    CONFIG_FOR_PURE_API.update({
+        'use_albert': True,
+        'model': 'voidful/albert-chinese-xlarge',
+        'bert_model_dir': '/home/chendian/download/albert_chinese_xlarge',
+    })
+
+
 is_training = False
 if is_training:
     CONFIG_FOR_PURE_API.update({
         'seed': 0,
-        'num_epoch': 100,
-        'learning_rate': 1e-5,
-        'task_learning_rate': 1e-4,
-        'warmup_proportion': 0.1,
+        'num_epoch': 50,
+        'warmup_proportion': 0.1,  # means first 5 epochs
+        'learning_rate': 1e-5,  # for BERT's learning
+        'task_learning_rate': 1e-4,  # for down-stream task learning
         'print_loss_step': 500,
         'eval_per_epoch': 1,
         'do_train': True,

@@ -24,7 +24,12 @@ class PureApi(object):
         self.documents = None
 
         # configs, from ArgParses or DictArgs
-        self.args = args or DictArgs(CONFIG_FOR_PURE_API)
+        if args:
+            if isinstance(args, dict):
+                args = DictArgs(args)
+            self.args = args
+        else:
+            self.args = DictArgs(CONFIG_FOR_PURE_API)
         self.ner_label2id, self.ner_id2label = get_labelmap(
             task_ner_labels[self.args.task])
 
