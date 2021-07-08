@@ -15,6 +15,29 @@ task_ner_labels = {
     'scierc':   ['Method', 'OtherScientificTerm', 'Task', 'Generic', 'Material', 'Metric'],
 }
 
+task_tag_dicts = {
+    'msra': {
+        'NR': '人名',
+        'NS': '地址',
+        'NT': '公司'},
+    'onto4': {
+        'PER': '人名',
+        'LOC': '地址',
+        'ORG': '公司',
+        'GPE': '位置'},
+    'resume': {
+        'ORG': '公司',
+        'EDU': '学历',
+        'PRO': '专业',
+        'LOC': '地址',
+        'NAME': '人名',
+        'CONT': '国籍',
+        'RACE': '民族',
+        'TITLE': '职称',
+    },
+    'findoc': None,
+    'unity': None,
+}
 
 task_max_span_length = {
     # Chinese Corpus
@@ -23,7 +46,7 @@ task_max_span_length = {
     'resume': 16,
     'ccks': 18,
     'findoc': 40,  #
-    'unity': 40,
+    'unity': 40,  # msra, resume, onto4, findoc
 
     # English Corpus
     'ace04': 8,
@@ -70,8 +93,8 @@ use_albert = False
 if use_albert:
     CONFIG_FOR_PURE_API.update({
         'use_albert': True,
-        'model': 'voidful/albert-chinese-xlarge',
-        'bert_model_dir': '/home/chendian/download/albert_chinese_xlarge',
+        'model': 'voidful/albert-chinese-xxlarge',
+        'bert_model_dir': '/home/chendian/download/albert_chinese_xxlarge',
     })
 
 
@@ -80,7 +103,7 @@ if is_training:
     CONFIG_FOR_PURE_API.update({
         'seed': 0,
         'num_epoch': 50,
-        'warmup_proportion': 0.1,  # means first 5 epochs
+        'warmup_proportion': 0.1,  # means first 10% epochs
         'learning_rate': 1e-5,  # for BERT's learning
         'task_learning_rate': 1e-4,  # for down-stream task learning
         'print_loss_step': 500,

@@ -1,13 +1,49 @@
-import sys
+import os
 import jsonlines
 from tqdm import tqdm
 from collections import defaultdict
-sys.path.append('../doc_ner')
 
+
+# in DOC_NER
+import sys
+sys.path.append('../doc_ner')
 from data_utils import *
-from scripts import add_span_in_sample
-from modules.Database import Database
 from file_register import get_path
+from modules.Database import Database
+from scripts import add_span_in_sample
+
+
+PURE_JSON_HELP = """
+A pure-json is like this:
+{
+  # document ID (please make sure doc_key can be used to identify a certain document)
+  "doc_key": "CNN_ENG_20030306_083604.6",
+
+  # sentences in the document, each sentence is a list of tokens
+  "sentences": [
+    [...],
+    [...],
+    ["tens", "of", "thousands", "of", "college", ...],
+    ...
+  ],
+
+  # entities (boundaries and entity type) in each sentence
+  "ner": [
+    [...],
+    [...],
+    [[26, 26, "LOC"], [14, 14, "PER"], ...], #the boundary positions are indexed in the document level
+    ...,
+  ],
+
+  # relations (two spans and relation type) in each sentence
+  "relations": [
+    [...],
+    [...],
+    [[14, 14, 10, 10, "ORG-AFF"], [14, 14, 12, 13, "ORG-AFF"], ...],
+    ...
+  ]
+}
+"""
 
 
 def sldb_to_ner_file(sl_db_path, ner_path, delimeter=' '):
@@ -41,11 +77,16 @@ def sldb_to_ner_file(sl_db_path, ner_path, delimeter=' '):
             f.write('\n'.encode('utf-8'))
 
 
-def ner_to_pure_json(ner_path, pure_path):
+def ner_to_pure_json(ner_path, pure_path="", tag_dict=None,
+                     doc_key="default-doc"):
     # ner file for one single pure json
-    ent_len = defaultdict(int)
+
+    def _defaultdict_int():
+        return defaultdict(int)
+
+    ent_len = defaultdict(_defaultdict_int)
     ent_type_set = set()
-    ret = [{"doc_key": "default-doc",
+    ret = [{"doc_key": doc_key,
             "sentences": [],
             "ner": [],
             "relations": []}]
@@ -55,6 +96,12 @@ def ner_to_pure_json(ner_path, pure_path):
             return False
         return text.lower()[0] in c.lower()
 
+    def _tag_type(tag):
+        tp = tag.strip().split('-')[1].strip()
+        if tag_dict:
+            tp = tag_dict.get(tp, tp)
+        return tp
+
     def generate_sample(char_list, tag_list, offset=0):
         words = char_list
         entities = []
@@ -62,32 +109,41 @@ def ner_to_pure_json(ner_path, pure_path):
         flag, head = 0, -1
         ent_type = ""
         for idx, tag in enumerate(tag_list):
-            if flag == 0 and _head(tag, 'bs'):
-                flag = 1
-                head = idx
-                ent_type = tag.strip().split('-')[1]
             if flag == 1:
-                if _head(tag, 'es'):
+                if _head(tag, 'e'):
                     # no idx+1 here for PURE's span design
                     entities.append(
                         (head + offset, idx + offset, ent_type))
-                    ent_len[idx-head+1] += 1
+                    ent_len[ent_type][idx - head + 1] += 1
                     ent_type_set.add(ent_type)
                     flag, head = 0, -1
                     ent_type = ""
-                elif _head(tag, 'o'):
-                    # no idx+1 here for PURE's span design
+                elif _head(tag, 'obs'):
                     entities.append(  # o means ends the last
+                        # not idx+1 here for PURE's span design
                         (head + offset, idx + offset - 1, ent_type))
-                    ent_len[idx - head] += 1
+                    ent_len[ent_type][idx - head] += 1
                     ent_type_set.add(ent_type)
                     flag, head = 0, -1
                     ent_type = ""
+            if flag == 0:
+                if _head(tag, 'b'):
+                    flag = 1
+                    head = idx
+                    ent_type = _tag_type(tag)
+                elif _head(tag, 's'):
+                    # flag = 0
+                    head = idx
+                    ent_type = _tag_type(tag)
+                    entities.append(
+                        (head + offset, idx + offset, ent_type))
+                    ent_len[ent_type][1] += 1
+                    ent_type_set.add(ent_type)
         else:
             if flag == 1:
                 entities.append(
                     (head + offset, idx + offset, ent_type))
-                ent_len[idx-head+1] += 1
+                ent_len[ent_type][idx - head + 1] += 1
                 ent_type_set.add(ent_type)
 
         return words, entities
@@ -119,10 +175,14 @@ def ner_to_pure_json(ner_path, pure_path):
             char_list, tag_list = [], []
 
     print("PURE_PATH", pure_path)
-    print(sorted(ent_len.items()))
-    print(ent_type_set)
-    with jsonlines.open(pure_path, mode='w') as writer:
-        writer.write_all(ret)
+    print("")
+    for type_name in ent_len:
+        print(type_name, ':', sorted(ent_len[type_name].items()))
+    print("")
+    print(sorted(ent_type_set))
+    if pure_path:
+        with jsonlines.open(pure_path, mode='w') as writer:
+            writer.write_all(ret)
     return ret
 
 

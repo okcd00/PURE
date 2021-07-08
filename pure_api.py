@@ -188,14 +188,13 @@ class PureApi(object):
             # sentence_text = ''.join(sent)
             for l, r, tp in ents:
                 for pivot in range(l - offset, r - offset + 1):
+                    pos_t = 'I'
                     if pivot == l - offset:
                         pos_t = 'B'
                         if l == r:
                             pos_t = 'S'
                     elif pivot == r - offset:
                         pos_t = 'E'
-                    else:
-                        pos_t = 'I'
                     tags[pivot] = '{}-{}'.format(pos_t, tp)
             results.append(u'\u0001'.join([
                 str(s_idx + 1),

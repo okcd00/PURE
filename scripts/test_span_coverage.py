@@ -1,6 +1,6 @@
-from collections import Counter
-from tqdm import tqdm
 import jsonlines
+from tqdm import tqdm
+from collections import Counter
 
 
 def flatten(nested_list, unique=False):
