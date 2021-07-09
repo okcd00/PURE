@@ -1,4 +1,3 @@
-import os
 import jsonlines
 from tqdm import tqdm
 from collections import defaultdict
@@ -78,7 +77,7 @@ def sldb_to_ner_file(sl_db_path, ner_path, delimeter=' '):
 
 
 def ner_to_pure_json(ner_path, pure_path="", tag_dict=None,
-                     doc_key="default-doc"):
+                     doc_key="default-doc", max_sentence_length=500):
     # ner file for one single pure json
 
     def _defaultdict_int():
@@ -148,30 +147,41 @@ def ner_to_pure_json(ner_path, pure_path="", tag_dict=None,
 
         return words, entities
 
+    def add_sample(char_list, tag_list, off):
+        # split too-long sentences
+        while len(char_list) > max_sentence_length:
+            pivot = max_sentence_length
+            while tag_list[pivot - 1] != 'O':
+                pivot -= 1
+            print("cut at:", char_list[pivot - 2:pivot + 3],
+                  tag_list[pivot - 2:pivot + 3])
+            off = add_sample(char_list[:pivot], tag_list[:pivot], off)
+            char_list, tag_list = char_list[pivot:], tag_list[pivot:]
+
+        words, entities = generate_sample(
+            char_list, tag_list, offset=off)
+        ret[0]['sentences'].append(words)
+        ret[0]['ner'].append(entities)
+        ret[0]['relations'].append([])
+        off += len(words)
+        return off
+
     offset = 0
     char_list, tag_list = [], []
     for line in tqdm(open(ner_path, 'rb')):
         if line.strip():
             line = line.strip().decode('utf-8').split()
+            if len(line) == 1:
+                continue
             c, t = line
             char_list.append(c)
             tag_list.append(t)
         else:
-            words, entities = generate_sample(
-                char_list, tag_list, offset=offset)
-            ret[0]['sentences'].append(words)
-            ret[0]['ner'].append(entities)
-            ret[0]['relations'].append([])
-            offset += len(words)
+            offset = add_sample(char_list, tag_list, offset)
             char_list, tag_list = [], []
     else:
         if len(char_list) + len(tag_list) > 0:
-            words, entities = generate_sample(
-                char_list, tag_list)
-            ret[0]['sentences'].append(words)
-            ret[0]['ner'].append(entities)
-            ret[0]['relations'].append([])
-            offset += len(words)
+            offset = add_sample(char_list, tag_list, offset)
             char_list, tag_list = [], []
 
     print("PURE_PATH", pure_path)
@@ -179,6 +189,8 @@ def ner_to_pure_json(ner_path, pure_path="", tag_dict=None,
     for type_name in ent_len:
         print(type_name, ':', sorted(ent_len[type_name].items()))
     print("")
+    print("# sentences:", len(ret[0]['ner']))
+    print("# words in longest sentence:", max(map(len, ret[0]['sentences'])))
     print(sorted(ent_type_set))
     if pure_path:
         with jsonlines.open(pure_path, mode='w') as writer:
@@ -229,14 +241,27 @@ def sl_db_to_pure_json():
 
 
 if __name__ == "__main__":
-    import jsonlines
-    from tqdm import tqdm
 
-    # for tag in ['org', 'loc', 'per']:
-    #     sldb_to_ner_file('./data/heatmap/msra_{}_spans_folder/'.format(tag),
-    #                      '/home/chendian/LatticeLSTM/data/test/test_{}.ner'.format(tag))
+    resume_tag_dict = {
+        'ORG': '公司',
+        'EDU': '学历',
+        'PRO': '专业',
+        'LOC': '地址',
+        'NAME': '人名',
+        'CONT': '国籍',
+        'RACE': '民族',
+        'TITLE': '职称',
+    }
 
-    ret = ner_to_pure_json(
-        ner_path='/home/chendian/PURE/data/ccks/dev.ner',
-        pure_path='/home/chendian/PURE/data/ccks/dev.json'
+    phase = 'train'
+    dataset_name = 'msra'
+    ret_test = ner_to_pure_json(
+        ner_path='/home/chendian/PURE/data/{}/{}.ner'.format(dataset_name, phase),
+        pure_path='/home/chendian/PURE/data/{}/{}.json'.format(dataset_name, phase),
+        # tag_dict={'NR': '人名', 'NS': '地址', 'NT': '公司'},  # msra
+        tag_dict={'PER': '人名', 'LOC': '地址', 'ORG': '公司'},  # msra-origin
+        # tag_dict=resume_tag_dict,
+        # tag_dict={'PER': '人名', 'LOC': '地址', 'ORG': '公司', 'GPE': '位置'},  # onto4
+        doc_key=dataset_name + '-doc',
     )
+

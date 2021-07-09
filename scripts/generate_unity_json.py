@@ -16,6 +16,6 @@ for phase in ['train', 'dev', 'test']:
                                     if tp in ['人名', '地址', '公司', '位置']]
                  for tags in line['ner']]
             dict_list.append(line)
-    save_path = '/home/chendian/PURE/data/unity/{}.json'.format(phase)
+    save_path = '/home/chendian/PURE/data/unity_with_findoc/{}.json'.format(phase)
     with jsonlines.open(save_path, mode='w') as writer:
         writer.write_all(dict_list)

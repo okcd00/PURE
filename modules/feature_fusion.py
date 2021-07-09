@@ -21,7 +21,7 @@ class FeatureFusion(object):
 
         if method in ['none', 'concat']:
             self.fusion = self.concat_fusion
-        elif 'weighted' in method:
+        elif 'weighted' in method:  # weighted-sum / gated
             self.mlp = nn.Sequential(
                 FeedForward(input_dim=input_dim,
                             num_layers=2,
