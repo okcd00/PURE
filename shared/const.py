@@ -74,8 +74,11 @@ CONFIG_FOR_PURE_API = {
     'train_batch_size': 8,
     'eval_batch_size': 8,
     'max_span_length': task_max_span_length[TASK_NAME],
+
     'take_name_module': True,
     'take_context_module': False,
+    'take_width_feature': True,
+    'fusion_method': 'none',
 
     # path to Bert
     'use_albert': False,

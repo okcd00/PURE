@@ -125,6 +125,10 @@ def setseed(seed):
         torch.cuda.manual_seed_all(seed)
 
 
+def args_str2bool(_str):
+    return _str.lower().strip() in ['True', 'true', '1']
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
@@ -183,11 +187,11 @@ if __name__ == '__main__':
                         help="whether to evaluate on invariance test set")
 
     # ablations
-    parser.add_argument('--take_width_feature', type=bool, default=True,
+    parser.add_argument('--take_width_feature', type=args_str2bool, default='True',
                         help="whether to take width embeddings for PURE")
-    parser.add_argument('--take_name_module', type=bool, default=True,
+    parser.add_argument('--take_name_module', type=args_str2bool, default='True',
                         help="whether to take name module for PURE")
-    parser.add_argument('--take_context_module', action='store_true',
+    parser.add_argument('--take_context_module', type=args_str2bool, default='False',
                         help="whether to take context module for PURE")
     parser.add_argument('--fusion_method', type=str, default='none',
                         help="how to take the feature fusion, [none|mlp|biaffine]")
