@@ -292,7 +292,7 @@ if __name__ == '__main__':
 
     if args.inv_test:
         test_data = Dataset(os.path.join(args.data_dir, 'inv_test.json'))
-        inv_prediction_file = os.path.join(args.output_dir, 'inv_{}'.format(args.test_pred_filename))
+        inv_prediction_file = os.path.join(args.output_dir, f'inv_{args.test_pred_filename}')
         test_samples, test_ner = convert_dataset_to_samples(test_data, args.max_span_length,
                                                             ner_label2id=ner_label2id,
                                                             context_window=args.context_window)
