@@ -125,6 +125,10 @@ def setseed(seed):
         torch.cuda.manual_seed_all(seed)
 
 
+def args_str2bool(_str):
+    return True if _str.lower() in ['True', 'true', '1'] else False
+
+  
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
@@ -183,11 +187,11 @@ if __name__ == '__main__':
                         help="whether to evaluate on invariance test set")
 
     # ablations
-    parser.add_argument('--take_width_feature', type=bool, default=True,
+    parser.add_argument('--take_width_feature', type=args_str2bool, default='True',
                         help="whether to take width embeddings for PURE")
-    parser.add_argument('--take_name_module', type=bool, default=True,
+    parser.add_argument('--take_name_module', type=args_str2bool, default='True',
                         help="whether to take name module for PURE")
-    parser.add_argument('--take_context_module', action='store_true',
+    parser.add_argument('--take_context_module', type=args_str2bool, default='False',
                         help="whether to take context module for PURE")
     parser.add_argument('--fusion_method', type=str, default='none',
                         help="how to take the feature fusion, [none|mlp|biaffine]")
@@ -288,7 +292,7 @@ if __name__ == '__main__':
 
     if args.inv_test:
         test_data = Dataset(os.path.join(args.data_dir, 'inv_test.json'))
-        inv_prediction_file = os.path.join(args.output_dir, 'inv_{}'.format(args.test_pred_filename))
+        inv_prediction_file = os.path.join(args.output_dir, f'inv_{args.test_pred_filename}')
         test_samples, test_ner = convert_dataset_to_samples(test_data, args.max_span_length,
                                                             ner_label2id=ner_label2id,
                                                             context_window=args.context_window)
