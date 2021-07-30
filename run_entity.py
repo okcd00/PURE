@@ -201,9 +201,12 @@ if __name__ == '__main__':
     args.dev_data = os.path.join(args.data_dir, 'dev.json')
     args.test_data = os.path.join(args.data_dir, 'test.json')
 
-    if 'albert' in args.model:
-        logger.info('Use Albert: %s'%args.model)
+    if 'bert-base-chinese' in args.model:
+        args.bert_model_dir = '/data/chend/model_files/chinese_L-12_H-768_A-12/'
+    elif 'albert' in args.model:
+        logger.info(f"Use Albert: {args.model}")
         args.use_albert = True
+        args.bert_model_dir = f"/data/chend/model_files/{args.model}"
 
     setseed(args.seed)
 
